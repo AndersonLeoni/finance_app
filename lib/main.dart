@@ -6,7 +6,7 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/accounts/accounts_screen.dart';
 import 'screens/variable_expenses/variable_expenses_screen.dart';
 import 'screens/income/income_screen.dart';
-import 'screens/investments/investments_screen.dart';
+import 'screens/projection/projection_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +27,9 @@ class FinanceApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [Locale('pt', 'BR')],
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+      ],
       locale: const Locale('pt', 'BR'),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -58,7 +60,7 @@ class _MainScreenState extends State<MainScreen> {
     AccountsScreen(),
     VariableExpensesScreen(),
     IncomeScreen(),
-    InvestmentsScreen(),
+    ProjectionScreen(),
   ];
 
   final List<NavigationDestination> _destinations = const [
@@ -85,7 +87,7 @@ class _MainScreenState extends State<MainScreen> {
     NavigationDestination(
       icon: Icon(Icons.trending_up_outlined),
       selectedIcon: Icon(Icons.trending_up),
-      label: 'Projetos',
+      label: 'Projeção',
     ),
   ];
 

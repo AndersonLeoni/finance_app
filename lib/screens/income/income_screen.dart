@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 import '../../models/income.dart';
 import '../../services/income_service.dart';
 
@@ -19,6 +18,9 @@ class _IncomeScreenState extends State<IncomeScreen> {
 
   final _currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
+  int _selectedMonth = DateTime.now().month;
+  int _selectedYear = DateTime.now().year;
+
   Income? _income;
 
   @override
@@ -28,9 +30,10 @@ class _IncomeScreenState extends State<IncomeScreen> {
   }
 
   Future<void> _load() async {
-    final now = DateTime.now();
-
-    final data = await _service.getIncomeForMonth(now.month, now.year);
+    final data = await _service.getIncomeForMonth(
+      _selectedMonth,
+      _selectedYear,
+    );
 
     if (data != null) {
       _salaryController.text = data.salary.toString();
@@ -43,8 +46,6 @@ class _IncomeScreenState extends State<IncomeScreen> {
   }
 
   Future<void> _save() async {
-    final now = DateTime.now();
-
     final salary = double.tryParse(_salaryController.text.replaceAll(",", "."));
     final extra =
         double.tryParse(_extraController.text.replaceAll(",", ".")) ?? 0;
@@ -52,9 +53,9 @@ class _IncomeScreenState extends State<IncomeScreen> {
     if (salary == null) return;
 
     final income = Income(
-      id: const Uuid().v4(),
-      month: now.month,
-      year: now.year,
+      id: "income_${_selectedMonth}_${_selectedYear}",
+      month: _selectedMonth,
+      year: _selectedYear,
       salary: salary,
       extra: extra,
     );
@@ -64,17 +65,33 @@ class _IncomeScreenState extends State<IncomeScreen> {
     await _load();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Renda salva com sucesso")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Renda de ${_selectedMonth}/${_selectedYear} salva"),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final monthNames = [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
+    ];
 
-    final month = DateFormat("MMMM yyyy", "pt_BR").format(now);
+    final now = DateTime.now();
 
     return Scaffold(
       appBar: AppBar(
@@ -86,13 +103,50 @@ class _IncomeScreenState extends State<IncomeScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Text(
-              month.toUpperCase(),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<int>(
+                    value: _selectedMonth,
+                    isExpanded: true,
+                    items: List.generate(
+                      12,
+                      (i) => DropdownMenuItem(
+                        value: i + 1,
+                        child: Text(monthNames[i]),
+                      ),
+                    ),
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedMonth = v!;
+                      });
+                      _load();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: DropdownButton<int>(
+                    value: _selectedYear,
+                    isExpanded: true,
+                    items: List.generate(
+                      5,
+                      (i) => DropdownMenuItem(
+                        value: now.year + i,
+                        child: Text("${now.year + i}"),
+                      ),
+                    ),
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedYear = v!;
+                      });
+                      _load();
+                    },
+                  ),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 20),
-
+            const SizedBox(height: 30),
             TextField(
               controller: _salaryController,
               keyboardType: TextInputType.number,
@@ -101,9 +155,7 @@ class _IncomeScreenState extends State<IncomeScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 16),
-
             TextField(
               controller: _extraController,
               keyboardType: TextInputType.number,
@@ -112,9 +164,7 @@ class _IncomeScreenState extends State<IncomeScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 20),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -126,9 +176,7 @@ class _IncomeScreenState extends State<IncomeScreen> {
                 child: const Text("Salvar"),
               ),
             ),
-
             const SizedBox(height: 30),
-
             if (_income != null)
               Card(
                 child: ListTile(
