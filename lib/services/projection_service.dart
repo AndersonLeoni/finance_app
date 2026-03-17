@@ -10,12 +10,14 @@ class ProjectionService {
 
     int maxMonths = 0;
 
-    for (var e in expenses) {
-      if (e.type == ExpenseType.installment) {
-        final remaining =
-            (e.totalInstallments ?? 0) - (e.currentInstallment ?? 0);
-        if (remaining > maxMonths) {
-          maxMonths = remaining;
+    for (final expense in expenses) {
+      if (expense.type == ExpenseType.installment) {
+        final totalInstallments = expense.totalInstallments ?? 0;
+        final currentInstallment = expense.currentInstallment ?? 0;
+        final remainingMonths = totalInstallments - currentInstallment;
+
+        if (remainingMonths > maxMonths) {
+          maxMonths = remainingMonths;
         }
       }
     }
@@ -24,39 +26,38 @@ class ProjectionService {
       maxMonths = 12;
     }
 
-    final List<ProjectionMonth> result = [];
+    final List<ProjectionMonth> projections = [];
 
-    for (int i = 0; i <= maxMonths; i++) {
-      final date = DateTime(now.year, now.month + i);
-
+    for (int offset = 0; offset <= maxMonths; offset++) {
+      final date = DateTime(now.year, now.month + offset);
       double totalExpenses = 0;
 
-      for (var e in expenses) {
-        if (e.type == ExpenseType.fixed) {
-          totalExpenses += e.value;
-        } else {
-          final remaining =
-              (e.totalInstallments ?? 0) - (e.currentInstallment ?? 0);
+      for (final expense in expenses) {
+        if (expense.type == ExpenseType.fixed) {
+          totalExpenses += expense.value;
+          continue;
+        }
 
-          if (i <= remaining) {
-            totalExpenses += e.value;
-          }
+        final totalInstallments = expense.totalInstallments ?? 0;
+        final currentInstallment = expense.currentInstallment ?? 0;
+        final remainingMonths = totalInstallments - currentInstallment;
+
+        if (offset <= remainingMonths) {
+          totalExpenses += expense.value;
         }
       }
 
-      final balance = income - totalExpenses;
-
-      result.add(
+      projections.add(
         ProjectionMonth(
           month: date.month,
           year: date.year,
           expenses: totalExpenses,
           income: income,
-          balance: balance,
+          balance: income - totalExpenses,
         ),
       );
     }
 
-    return result;
+    return projections;
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 import '../../models/expense.dart';
 import '../../services/expense_service.dart';
+import '../import/import_screen.dart'; // Import da tela criada
+import 'package:intl/intl.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -12,382 +12,265 @@ class AccountsScreen extends StatefulWidget {
 }
 
 class _AccountsScreenState extends State<AccountsScreen> {
-  final ExpenseService _service = ExpenseService();
-  final NumberFormat _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: 'R\$',
-  );
-  final _uuid = const Uuid();
-
+  final ExpenseService _expenseService = ExpenseService();
   List<Expense> _expenses = [];
-  bool _loading = true;
+
+  final _currencyFormat = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadExpenses();
   }
 
-  Future<void> _loadData() async {
-    final data = await _service.loadExpenses();
+  Future<void> _loadExpenses() async {
+    final expenses = await _expenseService.loadExpenses();
     setState(() {
-      _expenses = data;
-      _loading = false;
+      _expenses = expenses;
+      _isLoading = false;
     });
   }
 
-  Future<void> _payInstallment(Expense expense) async {
-    await _service.payInstallment(expense.id);
-    await _loadData();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Parcela ${expense.currentInstallment! + 1}/${expense.totalInstallments} paga!',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
+  Future<void> _deleteExpense(String id) async {
+    await _expenseService.deleteExpense(id);
+    _loadExpenses();
   }
 
-  Future<void> _deleteExpense(Expense expense) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text('Remover gasto?'),
-            content: Text('Deseja remover "${expense.name}"?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Remover',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-    );
-    if (confirm == true) {
-      await _service.deleteExpense(expense.id);
-      await _loadData();
-    }
+  Future<void> _payInstallment(String id) async {
+    await _expenseService.payInstallment(id);
+    _loadExpenses();
   }
 
+  // --- Função do botão + para adicionar manualmente ---
   void _showAddExpenseDialog() {
-    final categoryController = TextEditingController();
     final nameController = TextEditingController();
     final valueController = TextEditingController();
-    final currentInstController = TextEditingController(text: '1');
-    final totalInstController = TextEditingController();
+    final categoryController = TextEditingController();
+    final currentInstallmentController = TextEditingController();
+    final totalInstallmentsController = TextEditingController();
+    
     ExpenseType selectedType = ExpenseType.fixed;
 
     showDialog(
       context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setStateDialog) => AlertDialog(
-                  title: const Text('Novo Gasto'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Adicionar Conta/Parcela'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: categoryController,
+                    decoration: const InputDecoration(labelText: 'Cartão/Banco (ex: Visa, Nubank)'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Nome da despesa (ex: Netflix, Mercado)'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: valueController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Valor atual (R\$)'),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<ExpenseType>(
+                    value: selectedType,
+                    decoration: const InputDecoration(labelText: 'Tipo de Despesa'),
+                    items: const [
+                      DropdownMenuItem(value: ExpenseType.fixed, child: Text('Fixo Mensal')),
+                      DropdownMenuItem(value: ExpenseType.installment, child: Text('Parcelado')),
+                    ],
+                    onChanged: (value) {
+                      setStateDialog(() {
+                        selectedType = value!;
+                      });
+                    },
+                  ),
+                  if (selectedType == ExpenseType.installment) ...[
+                    const SizedBox(height: 16),
+                    Row(
                       children: [
-                        TextField(
-                          controller: categoryController,
-                          decoration: const InputDecoration(
-                            labelText: 'Cartão/Categoria',
-                            border: OutlineInputBorder(),
+                        Expanded(
+                          child: TextField(
+                            controller: currentInstallmentController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Parcela Atual (ex: 4)'),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Descrição',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<ExpenseType>(
-                          value: selectedType,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: ExpenseType.fixed,
-                              child: Text('Fixo'),
-                            ),
-                            DropdownMenuItem(
-                              value: ExpenseType.installment,
-                              child: Text('Parcelado'),
-                            ),
-                          ],
-                          onChanged:
-                              (v) => setStateDialog(() => selectedType = v!),
-                        ),
-                        const SizedBox(height: 12),
-                        if (selectedType == ExpenseType.installment) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: currentInstController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Parcela atual',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: totalInstController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Total parcelas',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        TextField(
-                          controller: valueController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Valor da parcela (R\$)',
-                            border: OutlineInputBorder(),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: totalInstallmentsController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Total de Parcelas (ex: 6)'),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2B5876),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () async {
-                        final value = double.tryParse(
-                          valueController.text.replaceAll(',', '.'),
-                        );
-                        if (categoryController.text.isEmpty ||
-                            nameController.text.isEmpty ||
-                            value == null)
-                          return;
-
-                        int? currentInst;
-                        int? totalInst;
-                        if (selectedType == ExpenseType.installment) {
-                          currentInst = int.tryParse(
-                            currentInstController.text,
-                          );
-                          totalInst = int.tryParse(totalInstController.text);
-                          if (currentInst == null ||
-                              totalInst == null ||
-                              currentInst > totalInst)
-                            return;
-                        }
-
-                        await _service.addExpense(
-                          Expense(
-                            id: _uuid.v4(),
-                            category: categoryController.text,
-                            name: nameController.text,
-                            type: selectedType,
-                            value: value,
-                            currentInstallment: currentInst,
-                            totalInstallments: totalInst,
-                          ),
-                        );
-
-                        if (mounted) Navigator.pop(context);
-                        await _loadData();
-                      },
-                      child: const Text('Salvar'),
-                    ),
                   ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2B5876),
+                  foregroundColor: Colors.white,
                 ),
-          ),
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  final category = categoryController.text.trim();
+                  final valueText = valueController.text.replaceAll(',', '.');
+                  final value = double.tryParse(valueText) ?? 0.0;
+
+                  if (name.isEmpty || value <= 0 || category.isEmpty) {
+                    // Validação simples
+                    return;
+                  }
+
+                  int? current;
+                  int? total;
+
+                  if (selectedType == ExpenseType.installment) {
+                    current = int.tryParse(currentInstallmentController.text);
+                    total = int.tryParse(totalInstallmentsController.text);
+                    if (current == null || total == null) return; // Segurança extra
+                  }
+
+                  final newExpense = Expense(
+                    id: _expenseService.generateId(),
+                    category: category,
+                    name: name,
+                    type: selectedType,
+                    value: value,
+                    currentInstallment: current,
+                    totalInstallments: total,
+                  );
+
+                  await _expenseService.addExpense(newExpense);
+                  Navigator.pop(context);
+                  _loadExpenses(); // Atualiza a tela após salvar
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
-
-  Map<String, List<Expense>> get _groupedExpenses {
-    final Map<String, List<Expense>> grouped = {};
-    for (final e in _expenses) {
-      grouped.putIfAbsent(e.category, () => []).add(e);
-    }
-    return grouped;
-  }
-
-  double get _totalMonth =>
-      _expenses.where((e) => e.isActive).fold(0, (sum, e) => sum + e.value);
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contas e Parcelas'),
+        title: const Text('Contas Fixas e Parcelas'),
         backgroundColor: const Color(0xFF2B5876),
         foregroundColor: Colors.white,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                _currency.format(_totalMonth),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          // Botão de importação
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Importar Planilha',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ImportScreen()),
+              ).then((_) => _loadExpenses()); // Recarrega ao fechar a importação
+            },
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddExpenseDialog,
-        backgroundColor: const Color(0xFF2B5876),
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                padding: const EdgeInsets.all(16),
-                children:
-                    _groupedExpenses.entries.map((entry) {
-                      final category = entry.key;
-                      final items = entry.value;
-                      final categoryTotal = items
-                          .where((e) => e.isActive)
-                          .fold(0.0, (sum, e) => sum + e.value);
+      body: _expenses.isEmpty
+          ? const Center(
+              child: Text(
+                'Nenhuma conta cadastrada ou importada ainda.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _expenses.length,
+              itemBuilder: (context, index) {
+                final expense = _expenses[index];
+                final isInstallment = expense.type == ExpenseType.installment;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isInstallment
+                          ? Colors.purple.withOpacity(0.15)
+                          : Colors.red.withOpacity(0.15),
+                      child: Icon(
+                        isInstallment ? Icons.layers : Icons.credit_card,
+                        color: isInstallment ? Colors.purple : Colors.red,
+                      ),
+                    ),
+                    title: Text(expense.name),
+                    subtitle: Text(
+                      isInstallment
+                          ? '${expense.category} • Parcela ${expense.currentInstallment}/${expense.totalInstallments}'
+                          : '${expense.category} • Valor fixo',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _currencyFormat.format(expense.value),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                        elevation: 2,
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                        PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'delete') {
+                              _deleteExpense(expense.id);
+                            } else if (value == 'pay' && isInstallment) {
+                              _payInstallment(expense.id);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            if (isInstallment && !expense.isCompleted)
+                              const PopupMenuItem(
+                                value: 'pay',
+                                child: Text('Avançar Parcela'),
                               ),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF2B5876),
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(12),
-                                ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text(
+                                'Excluir',
+                                style: TextStyle(color: Colors.red),
                               ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    category,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    _currency.format(categoryTotal),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ...items.map(
-                              (expense) => _buildExpenseTile(expense),
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
-              ),
-    );
-  }
-
-  Widget _buildExpenseTile(Expense expense) {
-    final isInstallment = expense.type == ExpenseType.installment;
-    final progress =
-        isInstallment
-            ? expense.currentInstallment! / expense.totalInstallments!
-            : 1.0;
-    final isCompleted = expense.isCompleted;
-
-    return ListTile(
-      title: Text(
-        expense.name,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle:
-          isInstallment
-              ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${expense.currentInstallment}/${expense.totalInstallments} parcelas',
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Colors.grey[200],
-                    color: isCompleted ? Colors.green : const Color(0xFF4facfe),
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ],
-              )
-              : const Text(
-                'Fixo mensal',
-                style: TextStyle(color: Colors.green),
-              ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _currency.format(expense.value),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          ),
-          const SizedBox(width: 8),
-          if (isInstallment && !isCompleted)
-            IconButton(
-              icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-              tooltip: 'Pagar parcela',
-              onPressed: () => _payInstallment(expense),
+                );
+              },
             ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            tooltip: 'Remover',
-            onPressed: () => _deleteExpense(expense),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddExpenseDialog, // Aciona a caixa de adicionar manual que devolvemos
+        backgroundColor: const Color(0xFF2B5876),
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
     );
   }

@@ -3,55 +3,53 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/variable_expense.dart';
 
 class VariableExpenseService {
-  static const String _key = "variable_expenses";
+  static const String _key = 'variable_expenses';
 
   Future<List<VariableExpense>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(_key);
 
-    if (data == null) {
+    if (data == null || data.isEmpty) {
       return [];
     }
 
     final List decoded = jsonDecode(data);
 
-    return decoded.map((e) => VariableExpense.fromMap(e)).toList();
+    return decoded
+        .map((item) => VariableExpense.fromMap(item))
+        .toList();
   }
 
   Future<void> save(List<VariableExpense> expenses) async {
     final prefs = await SharedPreferences.getInstance();
-
-    final encoded = jsonEncode(expenses.map((e) => e.toMap()).toList());
-
+    final encoded = jsonEncode(
+      expenses.map((e) => e.toMap()).toList(),
+    );
     await prefs.setString(_key, encoded);
   }
 
   Future<void> add(VariableExpense expense) async {
-    final list = await getAll();
-
-    list.add(expense);
-
-    await save(list);
+    final expenses = await getAll();
+    expenses.add(expense);
+    await save(expenses);
   }
 
   Future<void> delete(String id) async {
-    final list = await getAll();
-
-    list.removeWhere((e) => e.id == id);
-
-    await save(list);
+    final expenses = await getAll();
+    expenses.removeWhere((e) => e.id == id);
+    await save(expenses);
   }
 
   Future<double> getTotalCurrentMonth() async {
-    final List<VariableExpense> list = await getAll();
-
+    final expenses = await getAll();
     final now = DateTime.now();
 
     double total = 0;
 
-    for (var e in list) {
-      if (e.date.month == now.month && e.date.year == now.year) {
-        total += e.value;
+    for (final expense in expenses) {
+      if (expense.date.month == now.month &&
+          expense.date.year == now.year) {
+        total += expense.value;
       }
     }
 

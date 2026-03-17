@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/expense.dart';
+import '../../models/projection_month.dart';
 import '../../services/expense_service.dart';
 import '../../services/income_service.dart';
-import '../../services/variable_expense_service.dart';
 import '../../services/projection_service.dart';
-import '../../models/projection_month.dart';
+import '../../services/variable_expense_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,22 +17,27 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ExpenseService _expenseService = ExpenseService();
   final IncomeService _incomeService = IncomeService();
-  final VariableExpenseService _variableService = VariableExpenseService();
+  final VariableExpenseService _variableExpenseService =
+      VariableExpenseService();
   final ProjectionService _projectionService = ProjectionService();
 
-  final _currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  final NumberFormat _currency = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+  );
 
-  double _totalExpenses = 0;
   double _income = 0;
+  double _fixedAndInstallmentExpenses = 0;
+  double _variableExpenses = 0;
+  double _totalExpenses = 0;
   double _balance = 0;
-  double _variableTotal = 0;
   int _activeInstallments = 0;
 
-  ProjectionMonth? _nextMonth;
-  ProjectionMonth? _in6Months;
-  ProjectionMonth? _in12Months;
+  ProjectionMonth? _nextMonthProjection;
+  ProjectionMonth? _sixMonthsProjection;
+  ProjectionMonth? _twelveMonthsProjection;
 
-  bool _loading = true;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -43,99 +48,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadData() async {
     final expenses = await _expenseService.loadExpenses();
     final now = DateTime.now();
-    final incomeData = await _incomeService.getIncomeForMonth(now.month, now.year);
+    final incomeData = await _incomeService.getIncomeForMonth(
+      now.month,
+      now.year,
+    );
+    final variableTotal = await _variableExpenseService.getTotalCurrentMonth();
 
-    double total = 0;
-    int installments = 0;
+    double fixedAndInstallments = 0;
+    int activeInstallments = 0;
 
-    for (Expense e in expenses) {
-      if (e.isActive) total += e.value;
-      if (e.type == ExpenseType.installment && !e.isCompleted) installments++;
+    for (final expense in expenses) {
+      if (expense.isActive) {
+        fixedAndInstallments += expense.value;
+      }
+
+      if (expense.type == ExpenseType.installment && !expense.isCompleted) {
+        activeInstallments++;
+      }
     }
 
-    final varTotal = await _variableService.getTotalCurrentMonth();
-    total += varTotal;
-
     final income = incomeData?.total ?? 0;
+    final totalExpenses = fixedAndInstallments + variableTotal;
+    final balance = income - totalExpenses;
 
-    final projection = _projectionService.simulate(
+    final projections = _projectionService.simulate(
       expenses: expenses,
       income: income,
     );
 
     setState(() {
-      _totalExpenses = total;
       _income = income;
-      _balance = income - total;
-      _variableTotal = varTotal;
-      _activeInstallments = installments;
-      _nextMonth = projection.length > 1 ? projection[1] : null;
-      _in6Months = projection.length > 6 ? projection[6] : null;
-      _in12Months = projection.length > 12 ? projection[12] : null;
-      _loading = false;
+      _fixedAndInstallmentExpenses = fixedAndInstallments;
+      _variableExpenses = variableTotal;
+      _totalExpenses = totalExpenses;
+      _balance = balance;
+      _activeInstallments = activeInstallments;
+      _nextMonthProjection = projections.length > 1 ? projections[1] : null;
+      _sixMonthsProjection = projections.length > 6 ? projections[6] : null;
+      _twelveMonthsProjection =
+          projections.length > 12 ? projections[12] : null;
+      _isLoading = false;
     });
   }
 
-  Widget _card(String title, String value, IconData icon, Color color) {
+  Widget _buildInfoCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withOpacity(0.15),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title),
+        subtitle: Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
     );
   }
 
-  Widget _projectionCard(String label, ProjectionMonth? month) {
-    if (month == null) return const SizedBox.shrink();
-
-    final isPositive = month.balance >= 0;
+  Widget _buildProjectionCard(String title, ProjectionMonth? projection) {
+    if (projection == null) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-            Text(
-              _currency.format(month.balance),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isPositive ? Colors.green : Colors.red,
-              ),
-            ),
-          ],
+      child: ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: Color(0x142B5876),
+          child: Icon(Icons.timeline, color: Color(0xFF2B5876)),
+        ),
+        title: Text(title),
+        subtitle: Text(
+          _currency.format(projection.balance),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: projection.balance >= 0 ? Colors.green : Colors.red,
+          ),
         ),
       ),
     );
@@ -143,10 +138,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -160,67 +153,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-
-            const Text(
-              'MÊS ATUAL',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                letterSpacing: 1.2,
-              ),
+            _buildInfoCard(
+              title: 'Renda do mês',
+              value: _currency.format(_income),
+              icon: Icons.account_balance_wallet,
+              color: Colors.green,
             ),
-
-            const SizedBox(height: 8),
-
-            _card('Renda do mês', _currency.format(_income),
-                Icons.account_balance_wallet, Colors.green),
-            const SizedBox(height: 8),
-
-            _card('Contas fixas + parcelas',
-                _currency.format(_totalExpenses - _variableTotal),
-                Icons.credit_card, Colors.red),
-            const SizedBox(height: 8),
-
-            _card('Gastos variáveis', _currency.format(_variableTotal),
-                Icons.receipt_long, Colors.orange),
-            const SizedBox(height: 8),
-
-            _card('Saldo livre', _currency.format(_balance),
-                Icons.trending_up,
-                _balance >= 0 ? Colors.blue : Colors.red),
-            const SizedBox(height: 8),
-
-            _card('Parcelas ativas', _activeInstallments.toString(),
-                Icons.payments, Colors.purple),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'TENDÊNCIA FUTURA',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                letterSpacing: 1.2,
-              ),
+            _buildInfoCard(
+              title: 'Contas fixas + parcelas',
+              value: _currency.format(_fixedAndInstallmentExpenses),
+              icon: Icons.credit_card,
+              color: Colors.red,
             ),
-
-            const SizedBox(height: 8),
-
-            _projectionCard('Próximo mês', _nextMonth),
-            const SizedBox(height: 8),
-            _projectionCard('Em 6 meses', _in6Months),
-            const SizedBox(height: 8),
-            _projectionCard('Em 12 meses', _in12Months),
-
+            _buildInfoCard(
+              title: 'Gastos variáveis do mês',
+              value: _currency.format(_variableExpenses),
+              icon: Icons.receipt_long,
+              color: Colors.orange,
+            ),
+            _buildInfoCard(
+              title: 'Total de saídas',
+              value: _currency.format(_totalExpenses),
+              icon: Icons.payments_outlined,
+              color: Colors.deepOrange,
+            ),
+            _buildInfoCard(
+              title: 'Saldo livre',
+              value: _currency.format(_balance),
+              icon: Icons.trending_up,
+              color: _balance >= 0 ? Colors.blue : Colors.red,
+            ),
+            _buildInfoCard(
+              title: 'Parcelas ativas',
+              value: _activeInstallments.toString(),
+              icon: Icons.layers_outlined,
+              color: Colors.purple,
+            ),
             const SizedBox(height: 16),
-
             const Text(
-              '* Puxe para baixo para atualizar',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 11),
+              'Tendência futura',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            _buildProjectionCard('Próximo mês', _nextMonthProjection),
+            _buildProjectionCard('Daqui a 6 meses', _sixMonthsProjection),
+            _buildProjectionCard('Daqui a 12 meses', _twelveMonthsProjection),
           ],
         ),
       ),
