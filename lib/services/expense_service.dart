@@ -20,9 +20,7 @@ class ExpenseService {
 
   Future<void> saveExpenses(List<Expense> expenses) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(
-      expenses.map((e) => e.toMap()).toList(),
-    );
+    final encoded = jsonEncode(expenses.map((e) => e.toMap()).toList());
     await prefs.setString(_key, encoded);
   }
 
@@ -57,31 +55,26 @@ class ExpenseService {
     await saveExpenses(newExpenses);
   }
 
-  // --- Função que estava faltando para a tela Accounts ---
   Future<void> payInstallment(String id) async {
     final expenses = await loadExpenses();
     final index = expenses.indexWhere((e) => e.id == id);
-    
+
     if (index != -1) {
       final expense = expenses[index];
-      
-      // Só avança a parcela se for do tipo installment
+
       if (expense.type == ExpenseType.installment &&
           expense.currentInstallment != null &&
           expense.totalInstallments != null &&
           !expense.isCompleted) {
-            
-        final updatedExpense = Expense(
+        expenses[index] = Expense(
           id: expense.id,
+          category: expense.category,
           name: expense.name,
-          category: expense.category, // Incluído category do seu model atual
           type: expense.type,
           value: expense.value,
           currentInstallment: expense.currentInstallment! + 1,
           totalInstallments: expense.totalInstallments,
         );
-        
-        expenses[index] = updatedExpense;
         await saveExpenses(expenses);
       }
     }

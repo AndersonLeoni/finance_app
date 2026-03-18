@@ -23,7 +23,7 @@ class VariableExpenseService {
   Future<void> save(List<VariableExpense> expenses) async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(
-      expenses.map((e) => e.toMap()).toList(),
+      expenses.map((expense) => expense.toMap()).toList(),
     );
     await prefs.setString(_key, encoded);
   }
@@ -36,8 +36,13 @@ class VariableExpenseService {
 
   Future<void> delete(String id) async {
     final expenses = await getAll();
-    expenses.removeWhere((e) => e.id == id);
+    expenses.removeWhere((expense) => expense.id == id);
     await save(expenses);
+  }
+
+  Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
   }
 
   Future<double> getTotalCurrentMonth() async {
