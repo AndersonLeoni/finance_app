@@ -7,6 +7,7 @@ import 'screens/accounts/accounts_screen.dart';
 import 'screens/variable_expenses/variable_expenses_screen.dart';
 import 'screens/income/income_screen.dart';
 import 'screens/projection/projection_screen.dart';
+import 'screens/simulator/simulator_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,7 @@ class _MainScreenState extends State<MainScreen> {
     VariableExpensesScreen(),
     IncomeScreen(),
     ProjectionScreen(),
+    SimulatorScreen(),
   ];
 
   final List<NavigationDestination> _destinations = const [
@@ -87,6 +89,11 @@ class _MainScreenState extends State<MainScreen> {
       icon: Icon(Icons.trending_up_outlined),
       selectedIcon: Icon(Icons.trending_up),
       label: 'Projeção',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.calculate_outlined),
+      selectedIcon: Icon(Icons.calculate),
+      label: 'Simular',
     ),
   ];
 
