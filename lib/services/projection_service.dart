@@ -7,28 +7,24 @@ class ProjectionService {
     required double income,
   }) {
     final now = DateTime.now();
-
-    int maxMonths = 0;
+    int projectionMonths = 12;
 
     for (final expense in expenses) {
       if (expense.type == ExpenseType.installment) {
         final totalInstallments = expense.totalInstallments ?? 0;
         final currentInstallment = expense.currentInstallment ?? 0;
-        final remainingMonths = totalInstallments - currentInstallment;
 
-        if (remainingMonths > maxMonths) {
-          maxMonths = remainingMonths;
+        final monthsLeft = totalInstallments - currentInstallment + 1;
+
+        if (monthsLeft > projectionMonths) {
+          projectionMonths = monthsLeft;
         }
       }
     }
 
-    if (maxMonths < 12) {
-      maxMonths = 12;
-    }
-
     final List<ProjectionMonth> projections = [];
 
-    for (int offset = 0; offset <= maxMonths; offset++) {
+    for (int offset = 0; offset < projectionMonths; offset++) {
       final date = DateTime(now.year, now.month + offset);
       double totalExpenses = 0;
 
@@ -40,9 +36,14 @@ class ProjectionService {
 
         final totalInstallments = expense.totalInstallments ?? 0;
         final currentInstallment = expense.currentInstallment ?? 0;
-        final remainingMonths = totalInstallments - currentInstallment;
 
-        if (offset <= remainingMonths) {
+        if (currentInstallment <= 0 || totalInstallments <= 0) {
+          continue;
+        }
+
+        final installmentNumberInThisMonth = currentInstallment + offset;
+
+        if (installmentNumberInThisMonth <= totalInstallments) {
           totalExpenses += expense.value;
         }
       }

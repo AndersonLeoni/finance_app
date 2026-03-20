@@ -53,6 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       now.year,
     );
 
+    // --- CORRIGIDO: CHAMANDO O SERVIÇO CORRETAMENTE ---
     final variableTotal = await _variableService.getTotalCurrentMonth();
 
     double fixedTotal = 0;

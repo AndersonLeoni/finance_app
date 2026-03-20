@@ -15,9 +15,7 @@ class VariableExpenseService {
 
     final List decoded = jsonDecode(data);
 
-    return decoded
-        .map((item) => VariableExpense.fromMap(item))
-        .toList();
+    return decoded.map((item) => VariableExpense.fromMap(item)).toList();
   }
 
   Future<void> save(List<VariableExpense> expenses) async {
@@ -45,6 +43,7 @@ class VariableExpenseService {
     await prefs.remove(_key);
   }
 
+  // --- FUNÇÃO CORRIGIDA (SEM FOLD) ---
   Future<double> getTotalCurrentMonth() async {
     final expenses = await getAll();
     final now = DateTime.now();
@@ -52,8 +51,7 @@ class VariableExpenseService {
     double total = 0;
 
     for (final expense in expenses) {
-      if (expense.date.month == now.month &&
-          expense.date.year == now.year) {
+      if (expense.date.month == now.month && expense.date.year == now.year) {
         total += expense.value;
       }
     }
