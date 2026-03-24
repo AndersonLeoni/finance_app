@@ -9,7 +9,9 @@ import '../../services/variable_expense_service.dart';
 import '../../services/projection_service.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final Function(int) onNavigate;
+
+  const DashboardScreen({super.key, required this.onNavigate});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -21,17 +23,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final VariableExpenseService _variableService = VariableExpenseService();
   final ProjectionService _projectionService = ProjectionService();
 
-  final NumberFormat _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: 'R\$',
-  );
+  final NumberFormat _currency =
+      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
   double _income = 0;
   double _fixedExpenses = 0;
   double _variableExpenses = 0;
   double _totalExpenses = 0;
   double _balance = 0;
-  int _activeInstallments = 0;
+
+  List<Expense> _activeExpenses = [];
 
   ProjectionMonth? _nextMonth;
   ProjectionMonth? _in6Months;
@@ -49,28 +50,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final expenses = await _expenseService.loadExpenses();
     final now = DateTime.now();
 
-    final incomeData = await _incomeService.getIncomeForMonth(
-      now.month,
-      now.year,
-    );
+    final incomeData =
+        await _incomeService.getIncomeForMonth(now.month, now.year);
 
     final variableTotal = await _variableService.getTotalCurrentMonth();
 
     double fixedTotal = 0;
-    int installments = 0;
+    List<Expense> active = [];
 
     for (final e in expenses) {
       if (e.isActive) {
         fixedTotal += e.value;
-      }
-      if (e.type == ExpenseType.installment && !e.isCompleted) {
-        installments++;
+        active.add(e);
       }
     }
 
     final income = incomeData?.total ?? 0;
-    final totalExpenses = fixedTotal + variableTotal;
-    final balance = income - totalExpenses;
+    final total = fixedTotal + variableTotal;
+    final balance = income - total;
 
     final projections = _projectionService.simulate(
       expenses: expenses,
@@ -81,17 +78,142 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _income = income;
       _fixedExpenses = fixedTotal;
       _variableExpenses = variableTotal;
-      _totalExpenses = totalExpenses;
+      _totalExpenses = total;
       _balance = balance;
-      _activeInstallments = installments;
+      _activeExpenses = active;
+
       _nextMonth = projections.length > 1 ? projections[1] : null;
       _in6Months = projections.length > 6 ? projections[6] : null;
       _in12Months = projections.length > 12 ? projections[12] : null;
+
       _loading = false;
     });
   }
 
-  // --- WIDGETS VISUAIS MODERNOS ---
+  void _showSummary({
+    required String title,
+    required double value,
+    required String description,
+    required int tabIndex,
+    required String tabName,
+    List<Expense>? list,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (_, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _currency.format(value),
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2B5876),
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  if (list != null && list.isNotEmpty) ...[
+                    const Text(
+                      'Principais itens:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: list.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final item = list[index];
+                          final isInstallment = item.type == ExpenseType.installment;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                            subtitle: Text(
+                              isInstallment
+                                  ? 'Parcelado • ${item.currentInstallment}/${item.totalInstallments}'
+                                  : 'Fixo',
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                            ),
+                            trailing: Text(
+                              _currency.format(item.value),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ] else ...[
+                    const Spacer(),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onNavigate(tabIndex);
+                      },
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: Text('Gerenciar em $tabName'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2B5876),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildMainBalanceCard() {
     return Container(
@@ -123,10 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -158,29 +277,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String value,
     required IconData icon,
     required Color color,
-    required String tabName,
+    required VoidCallback onTap,
   }) {
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 200),
       tween: Tween(begin: 1, end: 1),
       builder: (context, scale, child) {
         return MouseRegion(
-          onEnter: (_) => setState(() {}),
-          onExit: (_) => setState(() {}),
+          cursor: SystemMouseCursors.click,
           child: Transform.scale(
             scale: scale,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Abra "$tabName" no menu inferior'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: onTap,
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -201,7 +312,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   child: Stack(
                     children: [
-                      // Glow decorativo
                       Positioned(
                         right: -10,
                         top: -10,
@@ -214,11 +324,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ),
-
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Ícone
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
@@ -227,10 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             child: Icon(icon, color: color, size: 22),
                           ),
-
                           const Spacer(),
-
-                          // Valor GRANDE (mais importante)
                           Text(
                             value,
                             style: TextStyle(
@@ -240,10 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               letterSpacing: -0.5,
                             ),
                           ),
-
                           const SizedBox(height: 4),
-
-                          // Label menor
                           Text(
                             title,
                             style: TextStyle(
@@ -265,11 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildProjectionTile(
-    String title,
-    ProjectionMonth? data,
-    IconData icon,
-  ) {
+  Widget _buildProjectionTile(String title, ProjectionMonth? data, IconData icon) {
     if (data == null) return const SizedBox();
 
     final isPositive = data.balance >= 0;
@@ -323,26 +421,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF2B5876)),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF2B5876))),
       );
     }
 
-    // Responsividade: 2 colunas no celular, 4 no PC/Web
     final screenWidth = MediaQuery.of(context).size.width;
     final crossAxisCount = screenWidth > 600 ? 4 : 2;
 
     return Scaffold(
-      backgroundColor:
-          Colors
-              .grey
-              .shade50, // Fundo levemente cinza para destacar os cards brancos
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text(
-          'Meu Painel',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Meu Painel', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF2B5876),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -358,83 +447,83 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _buildMainBalanceCard(),
               const SizedBox(height: 28),
-
               const Text(
                 'Resumo do Mês',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               const SizedBox(height: 16),
-
               GridView.count(
                 crossAxisCount: crossAxisCount,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.15, // Proporção dos cards
+                childAspectRatio: 1.15,
                 children: [
                   _buildGridCard(
                     title: 'Renda',
                     value: _currency.format(_income),
                     icon: Icons.account_balance_wallet,
                     color: Colors.green,
-                    tabName: 'Renda',
+                    onTap: () => _showSummary(
+                      title: 'Renda do Mês',
+                      value: _income,
+                      description: 'Soma de todas as entradas financeiras deste mês.',
+                      tabIndex: 3,
+                      tabName: 'Renda',
+                    ),
                   ),
                   _buildGridCard(
                     title: 'Contas Fixas',
                     value: _currency.format(_fixedExpenses),
                     icon: Icons.credit_card,
                     color: Colors.red.shade400,
-                    tabName: 'Contas',
+                    onTap: () => _showSummary(
+                      title: 'Contas Fixas e Parcelas',
+                      value: _fixedExpenses,
+                      description: 'Suas obrigações fixas e faturas de cartão.',
+                      tabIndex: 1,
+                      tabName: 'Contas',
+                      list: _activeExpenses,
+                    ),
                   ),
                   _buildGridCard(
                     title: 'Variáveis',
                     value: _currency.format(_variableExpenses),
                     icon: Icons.receipt_long,
                     color: Colors.orange,
-                    tabName: 'Gastos',
+                    onTap: () => _showSummary(
+                      title: 'Gastos Variáveis',
+                      value: _variableExpenses,
+                      description: 'Gastos do dia a dia (mercado, ifood, lazer).',
+                      tabIndex: 2,
+                      tabName: 'Gastos',
+                    ),
                   ),
                   _buildGridCard(
                     title: 'Total Saídas',
                     value: _currency.format(_totalExpenses),
                     icon: Icons.payments_outlined,
                     color: Colors.deepOrange,
-                    tabName: 'Dashboard',
+                    onTap: () => _showSummary(
+                      title: 'Total de Saídas',
+                      value: _totalExpenses,
+                      description: 'A soma exata das suas contas fixas e gastos variáveis.',
+                      tabIndex: 1,
+                      tabName: 'Contas',
+                    ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 32),
               const Text(
                 'Projeção Futura',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               const SizedBox(height: 16),
-
-              _buildProjectionTile(
-                'Próximo mês',
-                _nextMonth,
-                Icons.skip_next_rounded,
-              ),
-              _buildProjectionTile(
-                'Em 6 meses',
-                _in6Months,
-                Icons.update_rounded,
-              ),
-              _buildProjectionTile(
-                'Em 12 meses',
-                _in12Months,
-                Icons.event_available_rounded,
-              ),
-
+              _buildProjectionTile('Próximo mês', _nextMonth, Icons.skip_next_rounded),
+              _buildProjectionTile('Em 6 meses', _in6Months, Icons.update_rounded),
+              _buildProjectionTile('Em 12 meses', _in12Months, Icons.event_available_rounded),
               const SizedBox(height: 20),
             ],
           ),

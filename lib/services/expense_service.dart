@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import '../models/expense.dart';
+import 'package:uuid/uuid.dart';
 
 class ExpenseService {
   static const String _key = 'expenses';
-  static const Uuid _uuid = Uuid();
 
   Future<List<Expense>> loadExpenses() async {
     final prefs = await SharedPreferences.getInstance();
@@ -15,34 +14,37 @@ class ExpenseService {
 
     final List decoded = jsonDecode(data);
 
-    return decoded.map((item) => Expense.fromMap(item)).toList();
+    return decoded.map((e) => Expense.fromMap(e)).toList();
   }
 
-  Future<void> saveExpenses(List<Expense> expenses) async {
+  Future<void> saveExpenses(List<Expense> list) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(expenses.map((e) => e.toMap()).toList());
+    final encoded = jsonEncode(list.map((e) => e.toMap()).toList());
+
     await prefs.setString(_key, encoded);
   }
 
   Future<void> addExpense(Expense expense) async {
-    final expenses = await loadExpenses();
-    expenses.add(expense);
-    await saveExpenses(expenses);
+    final list = await loadExpenses();
+    list.add(expense);
+    await saveExpenses(list);
   }
 
   Future<void> deleteExpense(String id) async {
-    final expenses = await loadExpenses();
-    expenses.removeWhere((e) => e.id == id);
-    await saveExpenses(expenses);
+    final list = await loadExpenses();
+    list.removeWhere((e) => e.id == id);
+    await saveExpenses(list);
   }
 
   Future<void> updateExpense(Expense updated) async {
-    final expenses = await loadExpenses();
-    final index = expenses.indexWhere((e) => e.id == updated.id);
+    final list = await loadExpenses();
+
+    final index = list.indexWhere((e) => e.id == updated.id);
     if (index != -1) {
-      expenses[index] = updated;
+      list[index] = updated;
     }
-    await saveExpenses(expenses);
+
+    await saveExpenses(list);
   }
 
   Future<void> saveAll(List<Expense> newExpenses) async {
@@ -56,29 +58,23 @@ class ExpenseService {
   }
 
   Future<void> payInstallment(String id) async {
-    final expenses = await loadExpenses();
-    final index = expenses.indexWhere((e) => e.id == id);
+    final list = await loadExpenses();
 
-    if (index != -1) {
-      final expense = expenses[index];
+    final index = list.indexWhere((e) => e.id == id);
+    if (index == -1) return;
 
-      if (expense.type == ExpenseType.installment &&
-          expense.currentInstallment != null &&
-          expense.totalInstallments != null &&
-          !expense.isCompleted) {
-        expenses[index] = Expense(
-          id: expense.id,
-          category: expense.category,
-          name: expense.name,
-          type: expense.type,
-          value: expense.value,
-          currentInstallment: expense.currentInstallment! + 1,
-          totalInstallments: expense.totalInstallments,
-        );
-        await saveExpenses(expenses);
-      }
+    final expense = list[index];
+
+    if (expense.type == ExpenseType.installment &&
+        expense.currentInstallment != null &&
+        expense.totalInstallments != null) {
+      final next = expense.currentInstallment! + 1;
+
+      list[index] = expense.copyWith(currentInstallment: next);
+
+      await saveExpenses(list);
     }
   }
 
-  String generateId() => _uuid.v4();
+  String generateId() => const Uuid().v4();
 }

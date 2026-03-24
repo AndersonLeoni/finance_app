@@ -6,7 +6,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/accounts/accounts_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/income/income_screen.dart';
-import 'screens/projection/projection_screen.dart';
 import 'screens/simulator/simulator_screen.dart';
 import 'screens/variable_expenses/variable_expenses_screen.dart';
 
@@ -51,25 +50,28 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    AccountsScreen(),
-    VariableExpensesScreen(),
-    IncomeScreen(),
-    SimulatorScreen(),
-  ];
+  void _changeTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Passamos a função _changeTab para o Dashboard
+    final List<Widget> screens = [
+      DashboardScreen(onNavigate: _changeTab),
+      const AccountsScreen(),
+      const VariableExpensesScreen(),
+      const IncomeScreen(),
+      const SimulatorScreen(),
+    ];
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: screens[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onDestinationSelected: _changeTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
