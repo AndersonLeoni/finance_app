@@ -85,15 +85,18 @@ class _ImportScreenState extends State<ImportScreen> {
   }
 
   Future<void> _import() async {
-    if (_preview.isEmpty) return;
-
     if (_replaceExisting) {
-      await _service.replaceAll(_preview);
-    } else {
-      await _service.saveAll(_preview);
+      final existing = await _service.loadExpenses();
+
+      for (final e in existing) {
+        await _service.deleteExpense(e.id);
+      }
     }
 
-    final count = _preview.length;
+    for (final e in _preview) {
+      final newExpense = e.copyWith(id: _service.generateId());
+      await _service.addExpense(newExpense);
+    }
 
     setState(() {
       _preview = [];
