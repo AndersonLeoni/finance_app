@@ -97,7 +97,7 @@ class _ImportScreenState extends State<ImportScreen> {
       final newExpense = e.copyWith(id: _service.generateId());
       await _service.addExpense(newExpense);
     }
-
+    final count = _preview.length;
     setState(() {
       _preview = [];
       _showPreview = false;
