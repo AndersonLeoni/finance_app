@@ -3,15 +3,24 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'screens/accounts/accounts_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/accounts/accounts_screen.dart';
+import 'screens/variable_expenses/variable_expenses_screen.dart';
 import 'screens/income/income_screen.dart';
 import 'screens/simulator/simulator_screen.dart';
-import 'screens/variable_expenses/variable_expenses_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ Corrige erro de locale (tela vermelha)
   await initializeDateFormatting('pt_BR', null);
+
+  // ✅ Inicializa Firebase corretamente
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const FinanceApp());
 }
 
@@ -23,6 +32,7 @@ class FinanceApp extends StatelessWidget {
     return MaterialApp(
       title: 'Finance App',
       debugShowCheckedModeBanner: false,
+
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR')],
       localizationsDelegates: const [
@@ -30,11 +40,13 @@ class FinanceApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2B5876)),
         textTheme: GoogleFonts.interTextTheme(),
       ),
+
       home: const MainScreen(),
     );
   }
@@ -51,15 +63,12 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   void _changeTab(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
+    setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Passamos a função _changeTab para o Dashboard
-    final List<Widget> screens = [
+    final screens = [
       DashboardScreen(onNavigate: _changeTab),
       const AccountsScreen(),
       const VariableExpensesScreen(),
@@ -69,6 +78,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       body: screens[_currentIndex],
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _changeTab,
