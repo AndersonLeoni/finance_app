@@ -30,8 +30,8 @@ class Income {
       id: map['id'],
       month: map['month'],
       year: map['year'],
-      salary: map['salary'],
-      extra: map['extra'],
+      salary: (map['salary'] as num).toDouble(),
+      extra: (map['extra'] as num).toDouble(),
     );
   }
 }

@@ -64,7 +64,7 @@ class Expense {
     category: map['category'],
     name: map['name'],
     type: ExpenseType.values.firstWhere((e) => e.name == map['type']),
-    value: map['value'].toDouble(),
+    value: (map['value'] as num).toDouble(),
     currentInstallment: map['currentInstallment'],
     totalInstallments: map['totalInstallments'],
   );
