@@ -6,12 +6,18 @@ class FirebaseVariableExpenseService {
   final _collection = 'variable_expenses';
 
   Future<void> addVariableExpense(VariableExpense e) async {
-    await _db.collection(_collection).doc(e.id).set(e.toMap());
+    // Se o ID for numérico (timestamp), deixamos o Firestore gerar um ID aleatório
+    // ou usamos o ID fornecido se for uma string válida.
+    if (e.id.length > 5) {
+      await _db.collection(_collection).doc(e.id).set(e.toMap());
+    } else {
+      await _db.collection(_collection).add(e.toMap());
+    }
   }
 
   Future<List<VariableExpense>> getVariableExpenses() async {
     final snapshot = await _db.collection(_collection).get();
-    return snapshot.docs.map((doc) => VariableExpense.fromMap(doc.data())).toList();
+    return snapshot.docs.map((doc) => VariableExpense.fromMap(doc.data(), doc.id)).toList();
   }
 
   Future<void> deleteVariableExpense(String id) async {

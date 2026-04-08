@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class VariableExpense {
   final String id;
   final String description;
@@ -16,20 +18,30 @@ class VariableExpense {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'description': description,
+      'name': description, // Mapeado para 'name' conforme visto no Firebase
       'category': category,
       'value': value,
-      'date': date.toIso8601String(),
+      'date': date, // Firestore aceita DateTime diretamente como Timestamp
     };
   }
 
-  factory VariableExpense.fromMap(Map<String, dynamic> map) {
+  factory VariableExpense.fromMap(Map<String, dynamic> map, String documentId) {
+    // Tenta pegar a data de várias formas para garantir compatibilidade
+    DateTime parsedDate;
+    if (map['date'] is Timestamp) {
+      parsedDate = (map['date'] as Timestamp).toDate();
+    } else if (map['date'] is String) {
+      parsedDate = DateTime.parse(map['date']);
+    } else {
+      parsedDate = DateTime.now();
+    }
+
     return VariableExpense(
-      id: map['id'],
-      description: map['description'] ?? '',
+      id: map['id'] ?? documentId,
+      description: map['name'] ?? map['description'] ?? '',
       category: map['category'] ?? 'Outros',
       value: (map['value'] as num).toDouble(),
-      date: DateTime.parse(map['date']),
+      date: parsedDate,
     );
   }
 }

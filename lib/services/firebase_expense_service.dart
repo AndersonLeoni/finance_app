@@ -6,13 +6,13 @@ class FirebaseExpenseService {
   final _collection = 'expenses';
 
   Future<void> addExpense(Expense e) async {
+    // Usamos o ID gerado pelo UUID no app para o documento no Firestore
     await _db.collection(_collection).doc(e.id).set(e.toMap());
   }
 
   Future<List<Expense>> getExpenses() async {
     final snapshot = await _db.collection(_collection).get();
-
-    return snapshot.docs.map((doc) => Expense.fromMap(doc.data())).toList();
+    return snapshot.docs.map((doc) => Expense.fromMap(doc.data(), doc.id)).toList();
   }
 
   Future<void> deleteExpense(String id) async {
